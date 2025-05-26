@@ -26,6 +26,7 @@ public class JVertex {
 	private static final double epsilon = 1e-10;
 	private JConflictList list;
 	private int index;
+	int visitStamp = 0;
 
 	public Object originalObject;
 	public JVertex(double x, double y, double z) {

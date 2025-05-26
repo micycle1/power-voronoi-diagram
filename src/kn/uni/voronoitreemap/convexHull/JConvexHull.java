@@ -15,7 +15,7 @@ package kn.uni.voronoitreemap.convexHull;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Random;
+import java.util.SplittableRandom;
 
 /**
  * Class for computing the convex hull of given vertices with a randomized incremental algorithm in O(n*log(n)) after book of Mark de Berg/Marc van Kreveld
@@ -38,7 +38,10 @@ public class JConvexHull {
 	
 	private boolean permutate=false;
 	
-	protected final Random rand = new Random(1985);
+	protected final SplittableRandom rand = new SplittableRandom(1985);
+	
+	private int visitToken = 0;
+	// Global running counter
 	
 	public JConvexHull() {
 		points = new ArrayList<>();
@@ -127,50 +130,38 @@ public class JConvexHull {
 	
 	
 	/**
-	 * Conflicts of the new JFace can be only the conflicts of the incident JFaces of the horizon edge
-	 * @param old1 incident facet of the horizon edge
-	 * @param old2 other incident facet of the horizon edge
-	 * @param fn newly created facet, which conflicts are added
+	 * Conflicts of the new facet fn can only be vertices that were in conflict
+	 * with one of the two facets that formed the horizon edge.  
+	 * We iterate over these vertices **in place**, without creating temporary
+	 * lists, and add every true conflict exactly once.
 	 */
 	private void addConflicts(JFace old1, JFace old2, JFace fn) {
-		//Adding the vertices
-		List<JVertex> l1 = new ArrayList<>();
-        old1.getList().getVertices(l1);
-		List<JVertex> l2 = new ArrayList<>();
-        old2.getList().getVertices(l2);
-		List<JVertex> nCL = new ArrayList<>();
-		JVertex v1,v2;
-		int i,l;
-		i = l = 0;
-		//Fill the possible new Conflict List
-		while(i < l1.size() || l < l2.size()){
-			if(i < l1.size() && l < l2.size()){
-				v1 = l1.get(i);
-				v2 = l2.get(l);
-				//If the index is the same, its the same vertex and only 1 has to be added
-				if(v1.getIndex() == v2.getIndex()){
-					nCL.add(v1);
-					++i;
-					++l;
-				}else if(v1.getIndex() > v2.getIndex()){
-					nCL.add(v1);
-					++i;
-				}else{
-					nCL.add(v2);
-					++l;
-				}
-			}else if( i < l1.size()){
-				nCL.add(l1.get(i++));
-			}else{
-				nCL.add(l2.get(l++));
-			}
-		}
-		//Check if the possible conflicts are real conflicts
-		for(i = nCL.size() -1; i >= 0; --i){
-			v1 = nCL.get(i);
-			if(fn.conflict(v1))
-				addConflict(fn,v1);
-		}
+
+	    int token = ++visitToken;      // new unique id for this invocation
+
+	    JGraphEdge edge;
+
+	    // ---- first incident facet ------------------------------------------
+	    edge = old1.getList().head;
+	    while (edge != null) {
+	        JVertex v = edge.vert;
+	        if (v.visitStamp != token) {          // seen for the first time
+	            v.visitStamp = token;
+	            if (fn.conflict(v)) addConflict(fn, v);
+	        }
+	        edge = edge.nextv;
+	    }
+
+	    // ---- second incident facet -----------------------------------------
+	    edge = old2.getList().head;
+	    while (edge != null) {
+	        JVertex v = edge.vert;
+	        if (v.visitStamp != token) {          // duplicates filtered out
+	            v.visitStamp = token;
+	            if (fn.conflict(v)) addConflict(fn, v);
+	        }
+	        edge = edge.nextv;
+	    }
 	}
 	
 	/**
